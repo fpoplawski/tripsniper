@@ -7,6 +7,9 @@ packages = [{ include = "trip_sniper", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+fastapi = "^0.110.0"
+uvicorn = "^0.27.0"
+SQLAlchemy = "^2.0"
 
 [tool.poetry.dev-dependencies]
 
