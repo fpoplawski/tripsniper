@@ -136,3 +136,17 @@ def run_pipeline(destinations: Sequence[str], dates: Sequence[str], database_url
                     _upsert_offer(session, offer, score)
         session.commit()
 
+
+
+def run() -> None:
+    """Entry point used by the scheduler.
+
+    Destinations and dates are read from the environment variables
+    ``DESTINATIONS`` and ``DATES`` (comma separated).
+    """
+    dests = os.getenv("DESTINATIONS")
+    dates = os.getenv("DATES")
+    if not dests or not dates:
+        raise RuntimeError("DESTINATIONS and DATES must be set")
+    run_pipeline(dests.split(","), dates.split(","))
+
