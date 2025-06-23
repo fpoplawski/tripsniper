@@ -15,13 +15,13 @@ This project provides the skeleton for the `trip_sniper` service managed with [P
 
 ## Running
 
-To run the service module:
+To start the FastAPI application defined in `src/trip_sniper/service/app.py`:
 
 ```bash
-poetry run python -m trip_sniper.service
+poetry run python -m trip_sniper.service.app
 ```
 
-This command will execute the main service package. Adjust the entry point as your implementation evolves.
+This command runs the service's main FastAPI app.
 
 ## Scoring Configuration
 
