@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import asyncio
 from datetime import datetime
 from typing import Iterable, List, Sequence
 
@@ -110,8 +111,15 @@ def _upsert_offer(session: Session, offer: Offer, score: float) -> None:
         existing.steal_score = score
 
 
-def run_pipeline(destinations: Sequence[str], dates: Sequence[str], database_url: str | None = None) -> None:
+def run_pipeline(
+    destinations: Sequence[str],
+    dates: Sequence[str],
+    database_url: str | None = None,
+    async_mode: bool | None = None,
+) -> None:
     """Fetch offers, score them and persist to PostgreSQL."""
+    if async_mode is None:
+        async_mode = os.getenv("ASYNC_FETCH") == "1"
     db_url = database_url or os.getenv("DATABASE_URL")
     if not db_url:
         raise RuntimeError("DATABASE_URL not provided")
@@ -122,11 +130,20 @@ def run_pipeline(destinations: Sequence[str], dates: Sequence[str], database_url
     flight_fetcher = SkyscannerFetcher()
     hotel_fetcher = BookingFetcher()
 
+    async def _gather_offers(dest: str, date_val: str):
+        return await asyncio.gather(
+            flight_fetcher.async_fetch_offers(dest, date_val),
+            hotel_fetcher.async_fetch_offers(dest, date_val, date_val),
+        )
+
     with Session(engine) as session:
         for dest in destinations:
             for date in dates:
-                flights = flight_fetcher.fetch_offers(dest, date)
-                hotels = hotel_fetcher.fetch_offers(dest, date, date)
+                if async_mode:
+                    flights, hotels = asyncio.run(_gather_offers(dest, date))
+                else:
+                    flights = flight_fetcher.fetch_offers(dest, date)
+                    hotels = hotel_fetcher.fetch_offers(dest, date, date)
                 combined = _combine_offers(flights, hotels)
 
                 for offer in combined:
