@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Dict
+import os
+import json
 
 from .features import (
     discount_pct,
@@ -17,7 +19,7 @@ __all__ = ["steal_score"]
 
 # Default weight table for individual features. Weights should sum to 1.0 so
 # that the final score remains in the 0-100 range.
-weights: Dict[str, float] = {
+DEFAULT_WEIGHTS: Dict[str, float] = {
     "discount_pct": 0.25,
     "absolute_price_score": 0.2,
     "hotel_quality": 0.2,
@@ -26,6 +28,37 @@ weights: Dict[str, float] = {
     "novelty_score": 0.05,
     "category_match": 0.1,
 }
+
+
+def _load_weights() -> Dict[str, float]:
+    """Load feature weights from environment or JSON file."""
+    weights = DEFAULT_WEIGHTS.copy()
+
+    env_json = os.getenv("STEAL_SCORE_WEIGHTS")
+    if env_json:
+        try:
+            data = json.loads(env_json)
+            if isinstance(data, dict):
+                weights.update({k: float(v) for k, v in data.items()})
+                return weights
+        except Exception:
+            pass
+
+    path = os.getenv("STEAL_SCORE_WEIGHTS_FILE")
+    if path:
+        try:
+            with open(path) as fh:
+                data = json.load(fh)
+            if isinstance(data, dict):
+                weights.update({k: float(v) for k, v in data.items()})
+                return weights
+        except Exception:
+            pass
+
+    return weights
+
+
+weights: Dict[str, float] = _load_weights()
 
 
 def _clamp(value: float, min_value: float = 0.0, max_value: float = 100.0) -> float:
