@@ -10,6 +10,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
+import httpx
+import asyncio
 
 from ..models import Offer
 
@@ -47,6 +49,13 @@ class SkyscannerFetcher:
         if wait > 0:
             time.sleep(wait)
 
+    async def _rate_limit_async(self) -> None:
+        """Async variant of :py:meth:`_rate_limit`."""
+        elapsed = time.monotonic() - self._last_request_ts
+        wait = self.RATE_LIMIT_INTERVAL - elapsed
+        if wait > 0:
+            await asyncio.sleep(wait)
+
     def _request(self, method: str, url: str, **kwargs: Any) -> Dict[str, Any]:
         """Perform a HTTP request with retry and rate limiting."""
         headers = kwargs.pop("headers", {})
@@ -66,6 +75,33 @@ class SkyscannerFetcher:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Skyscanner request failed (attempt %s): %s", attempt + 1, exc)
                 time.sleep(backoff)
+                backoff *= 2
+        raise RuntimeError("Failed to fetch data from Skyscanner after retries")
+
+    async def _request_async(self, method: str, url: str, **kwargs: Any) -> Dict[str, Any]:
+        """Async HTTP request with retry and rate limiting."""
+        headers = kwargs.pop("headers", {})
+        headers["apikey"] = self.api_key
+        kwargs["headers"] = headers
+
+        backoff = 1.0
+        for attempt in range(5):
+            await self._rate_limit_async()
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.request(method, url, **kwargs)
+                self._last_request_ts = time.monotonic()
+                if response.status_code >= 500:
+                    raise requests.HTTPError(f"server error {response.status_code}")
+                response.raise_for_status()
+                return response.json()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Skyscanner request failed (attempt %s): %s",
+                    attempt + 1,
+                    exc,
+                )
+                await asyncio.sleep(backoff)
                 backoff *= 2
         raise RuntimeError("Failed to fetch data from Skyscanner after retries")
 
@@ -109,6 +145,32 @@ class SkyscannerFetcher:
             pages_fetched += 1
             if max_pages is not None and pages_fetched >= max_pages:
                 break
+
+            state.next_page_token = data.get("nextPageToken")
+            if not state.next_page_token:
+                break
+            state.page += 1
+
+        return offers
+
+    async def async_fetch_offers(self, destination: str, date: str) -> List[Offer]:
+        """Asynchronously fetch offers for a destination on a given date."""
+        state = _PaginationState()
+        offers: List[Offer] = []
+
+        while True:
+            params = {
+                "origin": "WAW",
+                "destination": destination,
+                "date": date,
+                "page": state.page,
+            }
+            if state.next_page_token:
+                params["next_page_token"] = state.next_page_token
+
+            data = await self._request_async("GET", self.BASE_URL, params=params)
+            page_offers = self._map_offers(data, destination)
+            offers.extend(page_offers)
 
             state.next_page_token = data.get("nextPageToken")
             if not state.next_page_token:
