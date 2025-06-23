@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from trip_sniper.models import Offer
 from trip_sniper.scoring import features
-from trip_sniper.scoring.steal_score import steal_score
+from trip_sniper.scoring.steal_score import steal_score, weights
 
 
 FIXED_NOW = datetime(2020, 1, 1, 12, 0, 0)
@@ -77,14 +77,15 @@ def test_steal_score_known_input(monkeypatch):
     prefs = {"locations": ["LON"], "max_price": 150, "min_stars": 3}
     monkeypatch.setattr(features, "datetime", type("dt", (), {"utcnow": lambda: FIXED_NOW}))
     score = steal_score(offer, prefs)
+    w = weights
     expected = (
-        20.0 * 0.25
-        + ((1 - 80 / 150) * 100) * 0.2
-        + ((8 / 10) * 60 + (4 / 5) * 40) * 0.2
-        + ((1 - 360 / 720) * 80 + 20) * 0.15
-        + ((1 - 10 / 30) * 100) * 0.05
-        + ((1 - 3 / 24) * 100) * 0.05
-        + (40 + (1 - 80 / 150) * 30 + 30) * 0.1
+        20.0 * w["discount_pct"]
+        + ((1 - 80 / 150) * 100) * w["absolute_price_score"]
+        + ((8 / 10) * 60 + (4 / 5) * 40) * w["hotel_quality"]
+        + ((1 - 360 / 720) * 80 + 20) * w["flight_comfort"]
+        + ((1 - 10 / 30) * 100) * w["urgency_score"]
+        + ((1 - 3 / 24) * 100) * w["novelty_score"]
+        + (40 + (1 - 80 / 150) * 30 + 30) * w["category_match"]
     )
     assert score == pytest.approx(expected)
 
