@@ -63,3 +63,14 @@ Example JSON file (`weights.json`):
 export STEAL_SCORE_WEIGHTS_FILE=weights.json
 ```
 
+## Scheduler
+
+`src/trip_sniper/scheduler.py` starts a Celery beat process that triggers the
+data pipeline once per hour by default. To change the schedule, provide a
+standard five-field cron expression in the `RUN_PIPELINE_CRON` environment
+variable. The value is parsed using `celery.schedules.crontab`.
+
+```bash
+export RUN_PIPELINE_CRON="0 */6 * * *"  # run every six hours
+```
+
