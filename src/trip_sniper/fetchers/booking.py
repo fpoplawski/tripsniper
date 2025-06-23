@@ -110,7 +110,15 @@ class BookingFetcher:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Failed to write to cache: %s", exc)
 
-        return self._map_offers(data, destination, checkin)
+        hotels = data.get("hotels", [])
+        offers: List[Offer] = []
+        for item in hotels:
+            try:
+                mapped = self._map_offers({"hotels": [item]}, destination, checkin)
+                offers.extend(mapped)
+            except ValueError as exc:
+                logger.error("Invalid date for hotel %s: %s", item.get("id"), exc)
+        return offers
 
     # ------------------------------------------------------------------
     def _map_offers(self, data: Dict[str, Any], destination: str, checkin: str) -> List[Offer]:
@@ -134,6 +142,8 @@ class BookingFetcher:
                     visible_from=datetime.utcnow(),
                 )
                 result.append(offer)
+            except ValueError:
+                raise
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Failed to map offer: %s", exc)
         return result
@@ -144,6 +154,6 @@ class BookingFetcher:
             return value
         try:
             return datetime.fromisoformat(str(value))
-        except Exception:  # noqa: BLE001
-            return datetime.utcnow()
+        except Exception as exc:  # noqa: BLE001
+            raise ValueError(f"invalid date value: {value}") from exc
 
