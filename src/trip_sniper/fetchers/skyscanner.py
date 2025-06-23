@@ -72,10 +72,25 @@ class SkyscannerFetcher:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def fetch_offers(self, destination: str, date: str) -> List[Offer]:
-        """Fetch offers for a destination on a given date."""
+    def fetch_offers(
+        self, destination: str, date: str, max_pages: Optional[int] = None
+    ) -> List[Offer]:
+        """Fetch offers for a destination on a given date.
+
+        Parameters
+        ----------
+        destination:
+            Airport or city code to search connections to.
+        date:
+            Date of departure.
+        max_pages:
+            Optional limit for how many pages should be fetched. When provided,
+            pagination stops once the limit is reached regardless of whether a
+            ``next_page_token`` is returned by the API.
+        """
         state = _PaginationState()
         offers: List[Offer] = []
+        pages_fetched = 0
 
         while True:
             params = {
@@ -90,6 +105,10 @@ class SkyscannerFetcher:
             data = self._request("GET", self.BASE_URL, params=params)
             page_offers = self._map_offers(data, destination)
             offers.extend(page_offers)
+
+            pages_fetched += 1
+            if max_pages is not None and pages_fetched >= max_pages:
+                break
 
             state.next_page_token = data.get("nextPageToken")
             if not state.next_page_token:
