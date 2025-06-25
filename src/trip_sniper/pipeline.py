@@ -159,7 +159,7 @@ def run_pipeline(
 
 
 
-def run() -> None:
+def run(origin: str | None = None) -> None:
     """Entry point used by the scheduler.
 
     Destinations and dates are read from the environment variables
@@ -169,5 +169,5 @@ def run() -> None:
     dates = os.getenv("DATES")
     if not dests or not dates:
         raise RuntimeError("DESTINATIONS and DATES must be set")
-    run_pipeline(dests.split(","), dates.split(","))
+    run_pipeline(dests.split(","), dates.split(","), origin=origin)
 
