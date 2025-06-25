@@ -1,6 +1,6 @@
 # Trip Sniper
 
-This project provides the skeleton for the `trip_sniper` service managed with [Poetry](https://python-poetry.org/).
+This project provides the skeleton for the `trip_sniper` service managed with [Poetry](https://python-poetry.org/). It fetches flight offers using the Amadeus Self-Service API.
 
 ## Installation
 
@@ -23,6 +23,10 @@ poetry run python -m trip_sniper.service.app
 
 This command runs the service's main FastAPI app.
 
+## Getting Amadeus credentials
+
+Create a free account on the [Amadeus for Developers Self-Service portal](https://developers.amadeus.com/self-service). After registering and verifying your email, open **My Self-Service Workspace** to create an application. The portal will display your `API key` and `API secret` which are required to call the API.
+
 ## Environment Variables
 
 The service relies on several environment variables for external API access and
@@ -34,6 +38,18 @@ AMADEUS_HOST=https://api.amadeus.com     # or https://test.api.amadeus.com
 AMADEUS_API_KEY=xxxxxxxxxxxxxxxx
 AMADEUS_API_SECRET=yyyyyyyyyyyyyyyy
 ORIGIN_IATA=WAW                          # default departure airport
+DATABASE_URL=postgresql+psycopg2://user:pass@localhost/tripsniper
+CELERY_BROKER_URL=redis://localhost:6379/0
+BOOKING_CLIENT_ID=your_booking_client_id
+BOOKING_CLIENT_SECRET=your_booking_client_secret
+```
+
+### Sample request
+
+With the service running locally you can query flight offers:
+
+```bash
+curl "http://localhost:8000/offers?account_type=premium&limit=5"
 ```
 
 ## Scoring Configuration
