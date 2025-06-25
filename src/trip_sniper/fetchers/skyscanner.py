@@ -128,9 +128,10 @@ class SkyscannerFetcher:
         offers: List[Offer] = []
         pages_fetched = 0
 
+        origin = os.getenv("ORIGIN_IATA", "WAW")
         while True:
             params = {
-                "origin": "WAW",
+                "origin": origin,
                 "destination": destination,
                 "date": date,
                 "page": state.page,
@@ -158,9 +159,10 @@ class SkyscannerFetcher:
         state = _PaginationState()
         offers: List[Offer] = []
 
+        origin = os.getenv("ORIGIN_IATA", "WAW")
         while True:
             params = {
-                "origin": "WAW",
+                "origin": origin,
                 "destination": destination,
                 "date": date,
                 "page": state.page,
