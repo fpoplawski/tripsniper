@@ -20,7 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
 
-from .fetchers import BookingFetcher, SkyscannerFetcher
+from .fetchers import BookingFetcher, AmadeusFlightFetcher
 from .models import Offer
 from .scoring.steal_score import steal_score
 
@@ -52,7 +52,7 @@ class OfferRecord(Base):
 
 
 def _combine_offers(flights: Iterable[Offer], hotels: Iterable[Offer]) -> List[Offer]:
-    """Join flight and hotel offers by destination and date."""
+    """Join Amadeus flight offers and hotel offers by destination and date."""
     result: List[Offer] = []
     for flight in flights:
         for hotel in hotels:
@@ -115,11 +115,14 @@ def run_pipeline(
     destinations: Sequence[str],
     dates: Sequence[str],
     database_url: str | None = None,
-    async_mode: bool | None = None,
+    origin: str | None = None,
 ) -> None:
     """Fetch offers, score them and persist to PostgreSQL."""
-    if async_mode is None:
-        async_mode = os.getenv("ASYNC_FETCH") == "1"
+    async_mode = os.getenv("ASYNC_FETCH") == "1"
+    if origin is None:
+        env_origin = os.getenv("ORIGIN_IATA")
+        if env_origin:
+            origin = env_origin
     db_url = database_url or os.getenv("DATABASE_URL")
     if not db_url:
         raise RuntimeError("DATABASE_URL not provided")
@@ -127,14 +130,15 @@ def run_pipeline(
     engine = create_engine(db_url)
     Base.metadata.create_all(engine)
 
-    flight_fetcher = SkyscannerFetcher()
+    flight_fetcher = AmadeusFlightFetcher()
     hotel_fetcher = BookingFetcher()
 
     async def _gather_offers(dest: str, date_val: str):
-        return await asyncio.gather(
-            flight_fetcher.async_fetch_offers(dest, date_val),
-            hotel_fetcher.async_fetch_offers(dest, date_val, date_val),
+        flights_task = asyncio.to_thread(
+            flight_fetcher.fetch_offers, dest, date_val, origin
         )
+        hotels_task = hotel_fetcher.async_fetch_offers(dest, date_val, date_val)
+        return await asyncio.gather(flights_task, hotels_task)
 
     with Session(engine) as session:
         for dest in destinations:
@@ -142,7 +146,7 @@ def run_pipeline(
                 if async_mode:
                     flights, hotels = asyncio.run(_gather_offers(dest, date))
                 else:
-                    flights = flight_fetcher.fetch_offers(dest, date)
+                    flights = flight_fetcher.fetch_offers(dest, date, origin)
                     hotels = hotel_fetcher.fetch_offers(dest, date, date)
                 combined = _combine_offers(flights, hotels)
 
