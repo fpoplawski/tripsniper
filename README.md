@@ -28,6 +28,10 @@ To demo Amadeus flight fetching:
 poetry run python scripts/demo_amadeus.py
 ```
 
+## Getting Amadeus credentials
+
+Create a free account on the [Amadeus for Developers Self-Service portal](https://developers.amadeus.com/self-service). After registering and verifying your email, open **My Self-Service Workspace** to create an application. The portal will display your `API key` and `API secret` which are required to call the API.
+
 ## Environment Variables
 
 The service relies on several environment variables for external API access and
