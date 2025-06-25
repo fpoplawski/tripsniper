@@ -33,15 +33,15 @@ def setup_periodic_tasks(sender, **kwargs) -> None:
         schedule = crontab(minute=0, hour="*")
     sender.add_periodic_task(
         schedule,
-        run_pipeline_task.s(),
+        run_pipeline_task.s(origin=os.getenv("ORIGIN_IATA", "WAW")),
         name="run pipeline",
     )
 
 
 @app.task(bind=True, max_retries=3, default_retry_delay=300, acks_late=True)
-def run_pipeline_task(self) -> None:
+def run_pipeline_task(self, origin: str | None = None) -> None:
     """Run the data pipeline. Idempotent due to upserts."""
     try:
-        pipeline.run()
+        pipeline.run(origin=origin)
     except Exception as exc:  # noqa: BLE001
         raise self.retry(exc=exc)
