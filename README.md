@@ -23,6 +23,19 @@ poetry run python -m trip_sniper.service.app
 
 This command runs the service's main FastAPI app.
 
+## Environment Variables
+
+The service relies on several environment variables for external API access and
+configuration. Create a `.env` file or export the variables in your shell. Key
+settings include:
+
+```ini
+AMADEUS_HOST=https://api.amadeus.com     # or https://test.api.amadeus.com
+AMADEUS_API_KEY=xxxxxxxxxxxxxxxx
+AMADEUS_API_SECRET=yyyyyyyyyyyyyyyy
+ORIGIN_IATA=WAW                          # default departure airport
+```
+
 ## Scoring Configuration
 
 The `steal_score` algorithm combines several feature scores using a weight table.
