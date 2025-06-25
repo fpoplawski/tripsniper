@@ -23,6 +23,11 @@ poetry run python -m trip_sniper.service.app
 
 This command runs the service's main FastAPI app.
 
+To demo Amadeus flight fetching:
+```bash
+poetry run python scripts/demo_amadeus.py
+```
+
 ## Environment Variables
 
 The service relies on several environment variables for external API access and
