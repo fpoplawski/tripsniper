@@ -80,21 +80,20 @@ def _upsert_offer(session: Session, offer: Offer, score: float) -> None:
     """Insert or update an offer record."""
     existing = session.get(OfferRecord, offer.id)
     if existing is None:
-        record = OfferRecord(
-            id=offer.id,
-            price_per_person=offer.price_per_person,
-            avg_price=offer.avg_price,
-            hotel_rating=offer.hotel_rating,
-            stars=offer.stars,
-            distance_from_beach=offer.distance_from_beach,
-            direct=offer.direct,
-            total_duration=offer.total_duration,
-            date=offer.date,
-            location=offer.location,
-            attraction_score=offer.attraction_score,
-            visible_from=offer.visible_from,
-            steal_score=score,
-        )
+        record = OfferRecord()
+        record.id = offer.id
+        record.price_per_person = offer.price_per_person
+        record.avg_price = offer.avg_price
+        record.hotel_rating = offer.hotel_rating
+        record.stars = offer.stars
+        record.distance_from_beach = offer.distance_from_beach
+        record.direct = offer.direct
+        record.total_duration = offer.total_duration
+        record.date = offer.date
+        record.location = offer.location
+        record.attraction_score = offer.attraction_score
+        record.visible_from = offer.visible_from
+        record.steal_score = score
         session.add(record)
     else:
         existing.price_per_person = offer.price_per_person
@@ -116,8 +115,13 @@ def run_pipeline(
     dates: Sequence[str],
     database_url: str | None = None,
     origin: str | None = None,
+    flights_only: bool = False,
 ) -> None:
-    """Fetch offers, score them and persist to PostgreSQL."""
+    """Fetch offers, score them and persist to PostgreSQL.
+
+    When ``flights_only`` is ``True`` only Amadeus flight offers are fetched
+    and persisted without combining them with hotel data.
+    """
     async_mode = os.getenv("ASYNC_FETCH") == "1"
     if origin is None:
         env_origin = os.getenv("ORIGIN_IATA")
@@ -131,12 +135,15 @@ def run_pipeline(
     Base.metadata.create_all(engine)
 
     flight_fetcher = AmadeusFlightFetcher()
-    hotel_fetcher = BookingFetcher()
+    hotel_fetcher = None if flights_only else BookingFetcher()
 
     async def _gather_offers(dest: str, date_val: str):
         flights_task = asyncio.to_thread(
             flight_fetcher.fetch_offers, dest, date_val, origin
         )
+        if hotel_fetcher is None:
+            flights = await flights_task
+            return flights, []
         hotels_task = hotel_fetcher.async_fetch_offers(dest, date_val, date_val)
         return await asyncio.gather(flights_task, hotels_task)
 
@@ -147,10 +154,10 @@ def run_pipeline(
                     flights, hotels = asyncio.run(_gather_offers(dest, date))
                 else:
                     flights = flight_fetcher.fetch_offers(dest, date, origin)
-                    hotels = hotel_fetcher.fetch_offers(dest, date, date)
-                combined = _combine_offers(flights, hotels)
+                    hotels = [] if hotel_fetcher is None else hotel_fetcher.fetch_offers(dest, date, date)
+                offers = flights if hotel_fetcher is None else _combine_offers(flights, hotels)
 
-                for offer in combined:
+                for offer in offers:
                     if offer.visible_from > datetime.utcnow():
                         continue
                     score = steal_score(offer)
@@ -169,5 +176,6 @@ def run(origin: str | None = None) -> None:
     dates = os.getenv("DATES")
     if not dests or not dates:
         raise RuntimeError("DESTINATIONS and DATES must be set")
-    run_pipeline(dests.split(","), dates.split(","), origin=origin)
+    flights_only = os.getenv("FLIGHTS_ONLY") == "1"
+    run_pipeline(dests.split(","), dates.split(","), origin=origin, flights_only=flights_only)
 
