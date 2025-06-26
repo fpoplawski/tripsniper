@@ -8,8 +8,21 @@ import time
 from datetime import datetime
 from typing import Any, List, Optional
 
-import amadeus as amadeus_client
-from amadeus import ResponseError
+try:  # pragma: no cover - optional dependency for tests
+    import amadeus as amadeus_client
+    from amadeus import ResponseError
+except Exception:  # pragma: no cover - allow tests without package
+    class _DummyClient:
+        def __init__(self, *args, **kwargs):  # pragma: no cover - simple stub
+            pass
+
+    class _DummyModule:
+        Client = _DummyClient
+
+    amadeus_client = _DummyModule()  # type: ignore
+
+    class ResponseError(Exception):
+        pass
 
 from ..models import Offer
 
@@ -38,6 +51,8 @@ class AmadeusFlightFetcher:
     @property
     def amadeus(self) -> amadeus_client.Client:
         if self._amadeus is None:
+            if amadeus_client is None:
+                raise RuntimeError("amadeus package not installed")
             self._amadeus = amadeus_client.Client(
                 client_id=self.api_key,
                 client_secret=self.api_secret,

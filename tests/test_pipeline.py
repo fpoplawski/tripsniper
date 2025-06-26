@@ -3,7 +3,9 @@ from datetime import datetime, timedelta
 import pytest
 
 from trip_sniper.models import Offer
-from trip_sniper.pipeline import _combine_offers
+from trip_sniper.pipeline import _combine_offers, run_pipeline
+from trip_sniper.fetchers.amadeus import AmadeusFlightFetcher
+from trip_sniper import pipeline
 
 
 def make_offer(**kwargs) -> Offer:
@@ -53,3 +55,40 @@ def test_visible_from_is_max_of_flight_and_hotel():
 
     assert len(combined) == 1
     assert combined[0].visible_from == hotel_visible
+
+
+def test_run_pipeline_flights_only(monkeypatch, tmp_path):
+    calls = {
+        "booking_init": False,
+        "booking_fetch": False,
+    }
+
+    def dummy_flights(self, dest, date, origin=None):
+        return [
+            make_offer(id="F1", location=dest, date=datetime.fromisoformat(date))
+        ]
+
+    class DummyBookingFetcher:
+        def __init__(self, *a, **k):
+            calls["booking_init"] = True
+
+        def fetch_offers(self, *a, **k):  # pragma: no cover - should not be called
+            calls["booking_fetch"] = True
+            return []
+
+    recorded: list[str] = []
+
+    def dummy_upsert(session, offer, score):
+        recorded.append(offer.id)
+
+    monkeypatch.setattr(AmadeusFlightFetcher, "fetch_offers", dummy_flights)
+    monkeypatch.setenv("AMADEUS_API_KEY", "k")
+    monkeypatch.setenv("AMADEUS_API_SECRET", "s")
+    monkeypatch.setattr(pipeline, "BookingFetcher", DummyBookingFetcher)
+    monkeypatch.setattr(pipeline, "_upsert_offer", dummy_upsert)
+
+    run_pipeline(["PAR"], ["2024-01-01"], database_url="sqlite:///ignored.db", flights_only=True)
+
+    assert recorded == ["F1"]
+    assert not calls["booking_init"]
+    assert not calls["booking_fetch"]
